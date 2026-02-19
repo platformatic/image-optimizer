@@ -1,5 +1,3 @@
-import type { Queue } from './queue.ts'
-
 export type ErrorProperties = { cause?: Error } & Record<string, any>
 
 export interface OptimizeJobPayload {
