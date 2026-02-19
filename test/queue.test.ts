@@ -1,0 +1,158 @@
+import { deepEqual, equal, ok, rejects } from 'node:assert'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { after, before, test } from 'node:test'
+import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+import { optimize, Queue } from '../src/index.ts'
+
+class ProbeQueue extends Queue {
+  static resetModuleCache (): void {
+    this.jobQueueModulePromise = null
+  }
+
+  static async exposeLoadJobQueueModule (): Promise<any> {
+    return super.loadJobQueueModule()
+  }
+}
+
+class MissingJobQueueModuleQueue extends Queue {
+  protected static async loadJobQueueModule (): Promise<any> {
+    const error = new Error("Cannot find package '@platformatic/job-queue'") as NodeJS.ErrnoException
+    error.code = 'ERR_MODULE_NOT_FOUND'
+    throw error
+  }
+}
+
+class BrokenJobQueueModuleQueue extends Queue {
+  protected static async loadJobQueueModule (): Promise<any> {
+    throw new Error('boom')
+  }
+}
+
+const fixtures = join(import.meta.dirname, 'fixtures', 'before')
+const width = 120
+const quality = 60
+
+const previousDispatcher = getGlobalDispatcher()
+const mockAgent = new MockAgent()
+
+before(() => {
+  setGlobalDispatcher(mockAgent)
+  mockAgent.disableNetConnect()
+})
+
+after(async () => {
+  await mockAgent.close()
+  setGlobalDispatcher(previousDispatcher)
+})
+
+test('Queue loads @platformatic/job-queue module and caches it', async () => {
+  ProbeQueue.resetModuleCache()
+
+  const first = await ProbeQueue.exposeLoadJobQueueModule()
+  const second = await ProbeQueue.exposeLoadJobQueueModule()
+
+  equal(typeof first.Queue, 'function')
+  equal(typeof first.MemoryStorage, 'function')
+  equal(first, second)
+})
+
+test('Queue.start throws ImageError when @platformatic/job-queue is missing', async () => {
+  const optimizer = new MissingJobQueueModuleQueue()
+
+  await rejects(optimizer.start(), {
+    name: 'ImageError',
+    code: 500,
+    message: 'The Queue requires @platformatic/job-queue to be installed'
+  })
+})
+
+test('Queue.start rethrows unknown module loading errors', async () => {
+  const optimizer = new BrokenJobQueueModuleQueue()
+
+  await rejects(optimizer.start(), {
+    name: 'Error',
+    message: 'boom'
+  })
+})
+
+test('Queue.start is idempotent', async () => {
+  const optimizer = new Queue()
+
+  await optimizer.start()
+  await optimizer.start()
+  await optimizer.stop()
+})
+
+test('Queue.stop is a no-op when queue is not started', async () => {
+  const optimizer = new Queue()
+
+  await optimizer.stop()
+})
+
+test('Queue throws if optimize is called before start', async () => {
+  const optimizer = new Queue()
+
+  await rejects(optimizer.optimize(Buffer.from('x'), width, quality), {
+    name: 'ImageError',
+    code: 500,
+    message: 'Queue is not started. Call start() before enqueueing jobs'
+  })
+})
+
+test('Queue optimizes images through queue jobs', async () => {
+  const optimizer = new Queue({ concurrency: 2 })
+  await optimizer.start()
+
+  const source = readFileSync(join(fixtures, 'source.jpg'))
+
+  const [queuedOptimized, directOptimized] = await Promise.all([
+    optimizer.optimize(source, width, quality),
+    optimize(source, width, quality)
+  ])
+
+  ok(queuedOptimized.byteLength < source.byteLength)
+  deepEqual(queuedOptimized, directOptimized)
+
+  await optimizer.stop()
+})
+
+test('Queue fetchAndOptimize returns buffer and response metadata', async () => {
+  const optimizer = new Queue()
+  await optimizer.start()
+
+  const source = readFileSync(join(fixtures, 'source.webp'))
+
+  const mockPool = mockAgent.get('https://queue-images.example')
+  mockPool.intercept({ path: '/source.webp', method: 'GET' }).reply(200, source, {
+    headers: {
+      'content-type': 'image/webp',
+      'cache-control': 'public, max-age=42'
+    }
+  })
+
+  const result = await optimizer.fetchAndOptimize('https://queue-images.example/source.webp', width, quality)
+
+  ok(result.buffer.byteLength < source.byteLength)
+  equal(result.contentType, 'image/webp')
+  equal(result.cacheControl, 'public, max-age=42')
+
+  await optimizer.stop()
+})
+
+test('Queue fetchAndOptimize returns null metadata when upstream headers are missing', async () => {
+  const optimizer = new Queue()
+  await optimizer.start()
+
+  const source = readFileSync(join(fixtures, 'source.png'))
+
+  const mockPool = mockAgent.get('https://queue-images.example')
+  mockPool.intercept({ path: '/source.png', method: 'GET' }).reply(200, source)
+
+  const result = await optimizer.fetchAndOptimize('https://queue-images.example/source.png', width, quality)
+
+  equal(result.contentType, null)
+  equal(result.cacheControl, null)
+
+  await optimizer.stop()
+})
