@@ -10,7 +10,6 @@ Detect, fetch, and optimize images with [`sharp`](https://sharp.pixelplumbing.co
 - Supports optional SVG passthrough
 - Provides `fetchAndOptimize()` for URL-based workflows (via `undici.request()`)
 - Provides queue APIs (`Queue`, `createQueue`) powered by [`@platformatic/job-queue`](https://www.npmjs.com/package/@platformatic/job-queue) for distributed work
-- Provides an HTTP optimization server API (`createServer`)
 - Throws structured `ImageError` objects
 
 ## Installation
@@ -56,17 +55,6 @@ Methods:
 ### `createQueue(options?)`
 
 Creates and starts a `Queue` instance.
-
-### `createServer(options?)`
-
-Creates a Fastify server with an optimization endpoint (default path: `/`):
-
-- `GET /?url=...&width=...&quality=...`
-
-Options:
-- `path`: endpoint path (default: `/`)
-- `allowSVG`: allow SVG optimization (default: `false`)
-- `includeErrorCausesInResponse`: include serialized error cause/stack in `500` responses (default: `false`)
 
 ## Example
 

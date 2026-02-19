@@ -36,7 +36,6 @@
     "postpublish": "git push origin && git push origin -f --tags"
   },
   "dependencies": {
-    "fastify": "^5.6.0",
     "http-errors-enhanced": "^4.0.2",
     "is-animated": "^2.0.2",
     "sharp": "^0.34.5",

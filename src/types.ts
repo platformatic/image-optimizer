@@ -35,16 +35,6 @@ export interface Job {
   payload: QueuePayload
 }
 
-export interface ServerOptions {
-  queue?: Queue
-  queueOptions?: QueueOptions
-  path?: string
-  allowSVG?: boolean
-  includeErrorCausesInResponse?: boolean
-}
-
-export type OptimizeQuery = Record<string, string | undefined>
-
 export interface Image<T = Buffer | string> {
   buffer: T
   contentType?: string | null
