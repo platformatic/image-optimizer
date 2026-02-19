@@ -1,5 +1,5 @@
-import { deepEqual, equal, ok } from 'node:assert'
 import type { FastifyInstance } from 'fastify'
+import { deepEqual, equal, ok } from 'node:assert'
 import { afterEach, test } from 'node:test'
 import { createServer } from '../src/index.ts'
 
@@ -46,113 +46,6 @@ test('createServer handles GET / requests', async () => {
   equal(response.headers['cache-control'], 'public, max-age=60')
   equal(response.body, 'ok')
   deepEqual(calls, [{ url: 'https://images.example/a.jpg', width: 120, quality: 75, allowSVG: false }])
-})
-
-test('createServer handles POST / requests', async () => {
-  const calls: Array<Record<string, any>> = []
-
-  const queue = {
-    async fetchAndOptimize () {
-      throw new Error('unexpected')
-    },
-    async optimize (buffer: Buffer, width: number, quality: number, allowSVG: boolean) {
-      calls.push({ width, quality, allowSVG, payload: buffer.toString() })
-      return Buffer.from([0xff, 0xd8, 0xff, 0xdb])
-    }
-  } as any
-
-  const server = await createServer({ queue })
-  servers.push(server)
-
-  const response = await server.inject({
-    method: 'POST',
-    url: '/?width=320&quality=80',
-    payload: Buffer.from('source-image'),
-    headers: {
-      'content-type': 'application/octet-stream'
-    }
-  })
-
-  equal(response.statusCode, 200)
-  equal(response.headers['content-type'], 'image/jpeg')
-  ok(response.rawPayload.byteLength > 0)
-  deepEqual(calls, [{ width: 320, quality: 80, allowSVG: false, payload: 'source-image' }])
-})
-
-test('createServer handles POST requests without a body', async () => {
-  const queue = {
-    async fetchAndOptimize () {
-      throw new Error('unexpected')
-    },
-    async optimize (buffer: Buffer) {
-      equal(buffer.byteLength, 0)
-      return Buffer.from([0xff, 0xd8, 0xff])
-    }
-  } as any
-
-  const server = await createServer({ queue })
-  servers.push(server)
-
-  const response = await server.inject({
-    method: 'POST',
-    url: '/?width=100&quality=70'
-  })
-
-  equal(response.statusCode, 200)
-  equal(response.headers['content-type'], 'image/jpeg')
-})
-
-test('createServer handles non-buffer POST body and falls back to octet-stream content type', async () => {
-  const queue = {
-    async fetchAndOptimize () {
-      throw new Error('unexpected')
-    },
-    async optimize (buffer: Buffer) {
-      equal(buffer.toString(), 'plain-text-body')
-      return Buffer.from('not-an-image')
-    }
-  } as any
-
-  const server = await createServer({ queue })
-  servers.push(server)
-
-  const response = await server.inject({
-    method: 'POST',
-    url: '/?width=100&quality=70',
-    payload: 'plain-text-body',
-    headers: {
-      'content-type': 'text/plain'
-    }
-  })
-
-  equal(response.statusCode, 200)
-  equal(response.headers['content-type'], 'application/octet-stream')
-})
-
-test('createServer falls back to octet-stream for detected types without a mime mapping', async () => {
-  const queue = {
-    async fetchAndOptimize () {
-      throw new Error('unexpected')
-    },
-    async optimize () {
-      return Buffer.from([0x00, 0x00, 0x00, 0x0c, 0x6a, 0x50, 0x20, 0x20, 0x0d, 0x0a, 0x87, 0x0a])
-    }
-  } as any
-
-  const server = await createServer({ queue })
-  servers.push(server)
-
-  const response = await server.inject({
-    method: 'POST',
-    url: '/?width=100&quality=70',
-    payload: Buffer.from('source-image'),
-    headers: {
-      'content-type': 'application/octet-stream'
-    }
-  })
-
-  equal(response.statusCode, 200)
-  equal(response.headers['content-type'], 'application/octet-stream')
 })
 
 test('createServer returns cause stack for 500 errors outside production', async () => {
@@ -290,34 +183,31 @@ test('createServer returns 404 for unsupported routes', async () => {
   })
 })
 
-test('createServer enforces maxBodySize and supports custom path', async () => {
+test('createServer supports custom path', async () => {
+  const calls: Array<Record<string, any>> = []
+
   const queue = {
-    async fetchAndOptimize () {
-      throw new Error('unexpected')
-    },
-    async optimize () {
-      throw new Error('unexpected')
+    async fetchAndOptimize (url: string, width: number, quality: number, allowSVG: boolean) {
+      calls.push({ url, width, quality, allowSVG })
+      return {
+        buffer: Buffer.from('ok'),
+        contentType: 'image/webp',
+        cacheControl: null
+      }
     }
   } as any
 
-  const server = await createServer({ queue, maxBodySize: 2, path: '/img' })
+  const server = await createServer({ queue, path: '/img' })
   servers.push(server)
 
   const response = await server.inject({
-    method: 'POST',
-    url: '/img?width=100&quality=80',
-    payload: Buffer.from('too-big'),
-    headers: {
-      'content-type': 'application/octet-stream'
-    }
+    method: 'GET',
+    url: '/img?url=https%3A%2F%2Fimages.example%2Fa.jpg&width=100&quality=80'
   })
 
-  equal(response.statusCode, 413)
-  deepEqual(response.json(), {
-    statusCode: 413,
-    error: 'Payload Too Large',
-    message: 'Request body exceeds the maximum allowed size of 2 bytes.'
-  })
+  equal(response.statusCode, 200)
+  equal(response.body, 'ok')
+  deepEqual(calls, [{ url: 'https://images.example/a.jpg', width: 100, quality: 80, allowSVG: false }])
 })
 
 test('createServer stops internally created queue on close', async () => {

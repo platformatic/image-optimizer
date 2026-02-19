@@ -62,7 +62,6 @@ Creates and starts a `Queue` instance.
 Creates a Fastify server with an optimization endpoint (default path: `/`):
 
 - `GET /?url=...&width=...&quality=...`
-- `POST /?width=...&quality=...` (raw image body)
 
 ## Example
 

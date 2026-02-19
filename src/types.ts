@@ -40,7 +40,6 @@ export interface ServerOptions {
   queueOptions?: QueueOptions
   path?: string
   allowSVG?: boolean
-  maxBodySize?: number
 }
 
 export type OptimizeQuery = Record<string, string | undefined>

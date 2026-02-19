@@ -8,11 +8,8 @@ import {
   isHttpError,
   messagesByCodes,
   NotFoundError,
-  PayloadTooLargeError,
   serializeError
 } from 'http-errors-enhanced'
-import { imageMimeTypes } from './definitions.ts'
-import { detectImageType } from './operations.ts'
 import type { Queue } from './queue.ts'
 import { createQueue } from './queue.ts'
 import type { OptimizeQuery, ServerOptions } from './types.ts'
@@ -72,43 +69,15 @@ async function fetchAndOptimizeHandler (
   return reply.send(image.buffer)
 }
 
-async function optimizeHandler (
-  queue: Queue,
-  { allowSVG, maxBodySize }: ServerOptions,
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
-  const query = request.query as OptimizeQuery
-  const width = readNumberQueryParam(query, 'width')
-  const quality = readNumberQueryParam(query, 'quality')
-  const body = request.body
-  const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body ?? ''))
-
-  if (payload.length > maxBodySize!) {
-    throw new PayloadTooLargeError(`Request body exceeds the maximum allowed size of ${maxBodySize} bytes.`)
-  }
-
-  const optimized = await queue.optimize(payload, width, quality, allowSVG)
-  const type = detectImageType(optimized)
-
-  reply.header('content-type', type ? (imageMimeTypes[type] ?? 'application/octet-stream') : 'application/octet-stream')
-  return reply.send(optimized)
-}
-
 export async function createServer (options: ServerOptions = {}): Promise<FastifyInstance> {
   const queue = options.queue ?? (await createQueue(options.queueOptions))
   const ownQueue = !options.queue
   const normalizedOptions = {
     path: options.path ?? '/',
-    allowSVG: options.allowSVG ?? false,
-    maxBodySize: options.maxBodySize ?? 10 * 1024 * 1024
+    allowSVG: options.allowSVG ?? false
   }
 
   const app = Fastify()
-
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => {
-    done(null, payload)
-  })
 
   app.setNotFoundHandler((_, reply) => {
     handleError(new NotFoundError('Invalid endpoint'), reply)
@@ -126,12 +95,6 @@ export async function createServer (options: ServerOptions = {}): Promise<Fastif
     method: 'GET',
     url: normalizedOptions.path,
     handler: fetchAndOptimizeHandler.bind(null, queue, normalizedOptions)
-  })
-
-  app.route({
-    method: 'POST',
-    url: normalizedOptions.path,
-    handler: optimizeHandler.bind(null, queue, normalizedOptions)
   })
 
   if (ownQueue) {
