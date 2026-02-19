@@ -14,8 +14,9 @@ const quality = 60
 
 test('optimize throws on invalid input image', async () => {
   await rejects(optimize(Buffer.from('definitely-not-an-image'), width, quality), {
-    name: 'ImageError',
-    code: 400,
+    name: 'BadRequestError',
+    code: 'HTTP_ERROR_BAD_REQUEST',
+    statusCode: 400,
     message: 'Invalid input image'
   })
 })
@@ -24,8 +25,9 @@ test('optimize throws for animated images', async () => {
   const animatedPng = readFileSync(join(beforeDir, 'animated.png'))
 
   await rejects(optimize(animatedPng, width, quality), {
-    name: 'ImageError',
-    code: 400,
+    name: 'BadRequestError',
+    code: 'HTTP_ERROR_BAD_REQUEST',
+    statusCode: 400,
     message: 'Unable to optimize and animated image'
   })
 })
@@ -34,9 +36,10 @@ test('optimize blocks svg by default and allows it when requested', async () => 
   const svg = readFileSync(join(beforeDir, 'source.svg'))
 
   await rejects(optimize(svg, width, quality), {
-    name: 'ImageError',
-    code: 400,
-    message: 'Optimization of SVG images is not allowed'
+    name: 'BadRequestError',
+    code: 'HTTP_ERROR_BAD_REQUEST',
+    statusCode: 400,
+    message: 'SVG images are not allowed'
   })
 
   const allowed = await optimize(svg, width, quality, true)

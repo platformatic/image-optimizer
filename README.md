@@ -1,7 +1,6 @@
 # @platformatic/image-optimizer
 
 Detect, fetch, and optimize images with [`sharp`](https://sharp.pixelplumbing.com/), with optional queue-backed processing via [`@platformatic/job-queue`](https://github.com/platformatic/job-queue).
-A small utility to detect, fetch, and optimize images using .
 
 ## Features
 
@@ -9,7 +8,9 @@ A small utility to detect, fetch, and optimize images using .
 - Optimizes raster images (`jpeg`, `png`, `webp`, `avif`)
 - Prevents animated image optimization
 - Supports optional SVG passthrough
-- Provides `fetchAndOptimize()` for URL-based workflows
+- Provides `fetchAndOptimize()` for URL-based workflows (via `undici.request()`)
+- Provides queue APIs (`Queue`, `createQueue`) powered by [`@platformatic/job-queue`](https://www.npmjs.com/package/@platformatic/job-queue) for distributed work
+- Provides an HTTP optimization server API (`createServer`)
 - Throws structured `ImageError` objects
 
 ## Installation
@@ -30,8 +31,8 @@ Optimizes an input image buffer.
 
 ### `fetchAndOptimize(url, width, quality, allowSVG = false)`
 
-Fetches an image using `fetch()` and then runs `optimize()`.
-Returns an object with:
+Fetches an image and then runs `optimize()`.
+Returns:
 
 - `buffer`: optimized image buffer
 - `contentType`: upstream `content-type` response header (or `null`)
@@ -41,7 +42,7 @@ Returns an object with:
 
 Returns the detected image type (for example `jpeg`, `png`, `webp`) or `null`.
 
-### `ImageOptimizerQueue`
+### `Queue`
 
 Queue-backed optimizer powered by [`@platformatic/job-queue`](https://www.npmjs.com/package/@platformatic/job-queue).
 
@@ -49,17 +50,28 @@ Methods:
 
 - `start()`
 - `stop()`
-- `optimize(buffer, width, quality, allowSVG?)`
-- `fetchAndOptimize(url, width, quality, allowSVG?)`
+- `optimize(buffer, width, quality, allowSVG?)` (auto-starts on first use)
+- `fetchAndOptimize(url, width, quality, allowSVG?)` (auto-starts on first use)
 
-> `@platformatic/job-queue` is an optional dependency. Install it if you want to use `ImageOptimizerQueue`.
+### `createQueue(options?)`
+
+Creates and starts a `Queue` instance.
+
+### `createServer(options?)`
+
+Creates a Fastify server with an optimization endpoint (default path: `/`):
+
+- `GET /?url=...&width=...&quality=...`
+- `POST /?width=...&quality=...` (raw image body)
 
 ## Example
 
 ```ts
-import { fetchAndOptimize } from '@platformatic/image-optimizer'
+import { createQueue, fetchAndOptimize } from '@platformatic/image-optimizer'
 
-const { buffer, contentType, cacheControl } = await fetchAndOptimize('https://example.com/image.jpg', 800, 75)
+const queue = await createQueue({ concurrency: 2 })
+const { buffer } = await fetchAndOptimize('https://example.com/image.jpg', 800, 75)
+await queue.stop()
 ```
 
 ## License

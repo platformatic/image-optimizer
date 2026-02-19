@@ -19,6 +19,19 @@ export const imageTypes: [string, number[]][] = [
   ['jxl_1', [0xff, 0x0a]]
 ]
 
+export const imageMimeTypes: Record<string, string> = {
+  avif: 'image/avif',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  icns: 'image/icns',
+  bmp: 'image/bmp',
+  heic: 'image/heic',
+  jxl: 'image/jxl'
+}
+
 export const animatableTypes = ['webp', 'png', 'gif']
 export const bypassTypes = ['svg', 'ico', 'icns', 'bmp', 'jxl', 'heic']
 export const maxImageSize = 268_402_689 // See limitInputPixels in https://sharp.pixelplumbing.com/api-constructor/

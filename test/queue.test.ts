@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
-import { optimize, Queue } from '../src/index.ts'
+import { createQueue, optimize, Queue } from '../src/index.ts'
 
 class ProbeQueue extends Queue {
   static resetModuleCache (): void {
@@ -57,12 +57,13 @@ test('Queue loads @platformatic/job-queue module and caches it', async () => {
   equal(first, second)
 })
 
-test('Queue.start throws ImageError when @platformatic/job-queue is missing', async () => {
+test('Queue.start throws InternalServerError when @platformatic/job-queue is missing', async () => {
   const optimizer = new MissingJobQueueModuleQueue()
 
   await rejects(optimizer.start(), {
-    name: 'ImageError',
-    code: 500,
+    name: 'InternalServerError',
+    code: 'HTTP_ERROR_INTERNAL_SERVER_ERROR',
+    statusCode: 500,
     message: 'The Queue requires @platformatic/job-queue to be installed'
   })
 })
@@ -84,20 +85,32 @@ test('Queue.start is idempotent', async () => {
   await optimizer.stop()
 })
 
+test('createQueue returns a started queue', async () => {
+  const optimizer = await createQueue()
+  const source = readFileSync(join(fixtures, 'source.png'))
+
+  const optimized = await optimizer.optimize(source, width, quality)
+
+  ok(optimized.byteLength <= source.byteLength)
+
+  await optimizer.stop()
+})
+
 test('Queue.stop is a no-op when queue is not started', async () => {
   const optimizer = new Queue()
 
   await optimizer.stop()
 })
 
-test('Queue throws if optimize is called before start', async () => {
+test('Queue starts on demand when optimize is called before start', async () => {
   const optimizer = new Queue()
+  const source = readFileSync(join(fixtures, 'source.jpg'))
 
-  await rejects(optimizer.optimize(Buffer.from('x'), width, quality), {
-    name: 'ImageError',
-    code: 500,
-    message: 'Queue is not started. Call start() before enqueueing jobs'
-  })
+  const optimized = await optimizer.optimize(source, width, quality)
+
+  ok(optimized.byteLength < source.byteLength)
+
+  await optimizer.stop()
 })
 
 test('Queue optimizes images through queue jobs', async () => {

@@ -1,6 +1,6 @@
 import type { Queue as JobQueue, MemoryStorage } from '@platformatic/job-queue'
+import { InternalServerError } from 'http-errors-enhanced'
 import { randomUUID } from 'node:crypto'
-import { ImageError } from './errors.ts'
 import { fetchAndOptimize, optimize } from './operations.ts'
 import type { Image, Job, QueueOptions, QueuePayload } from './types.ts'
 
@@ -45,7 +45,7 @@ export class Queue {
         (error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND' &&
         (error as Error).message.includes("'@platformatic/job-queue'")
       ) {
-        throw new ImageError(500, 'The Queue requires @platformatic/job-queue to be installed', {
+        throw new InternalServerError('The Queue requires @platformatic/job-queue to be installed', {
           cause: error as Error
         })
       }
@@ -68,26 +68,7 @@ export class Queue {
       resultTTL: this.#options.resultTTL
     })
 
-    queue.execute(async ({ payload }: Job) => {
-      if (payload.type === 'optimize') {
-        const optimizedBuffer = await optimize(
-          Buffer.from(payload.buffer, 'base64'),
-          payload.width,
-          payload.quality,
-          payload.allowSVG
-        )
-        return {
-          buffer: optimizedBuffer.toString('base64')
-        }
-      }
-
-      const optimizedImage = await fetchAndOptimize(payload.url, payload.width, payload.quality, payload.allowSVG)
-      return {
-        buffer: optimizedImage.buffer.toString('base64'),
-        contentType: optimizedImage.contentType,
-        cacheControl: optimizedImage.cacheControl
-      }
-    })
+    queue.execute(this.#execute.bind(this))
 
     await queue.start()
 
@@ -135,9 +116,36 @@ export class Queue {
 
   async #enqueueAndWait (payload: QueuePayload): Promise<Image<string>> {
     if (!this.#queue || !this.#started) {
-      throw new ImageError(500, 'Queue is not started. Call start() before enqueueing jobs')
+      await this.start()
     }
 
-    return this.#queue.enqueueAndWait(randomUUID(), payload)
+    return this.#queue!.enqueueAndWait(randomUUID(), payload)
   }
+
+  async #execute ({ payload }: Job): Promise<Image<string>> {
+    if (payload.type === 'optimize') {
+      const optimizedBuffer = await optimize(
+        Buffer.from(payload.buffer, 'base64'),
+        payload.width,
+        payload.quality,
+        payload.allowSVG
+      )
+      return {
+        buffer: optimizedBuffer.toString('base64')
+      }
+    }
+
+    const optimizedImage = await fetchAndOptimize(payload.url, payload.width, payload.quality, payload.allowSVG)
+    return {
+      buffer: optimizedImage.buffer.toString('base64'),
+      contentType: optimizedImage.contentType,
+      cacheControl: optimizedImage.cacheControl
+    }
+  }
+}
+
+export async function createQueue (options: QueueOptions = {}): Promise<Queue> {
+  const queue = new Queue(options)
+  await queue.start()
+  return queue
 }

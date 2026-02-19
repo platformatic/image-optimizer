@@ -1,3 +1,5 @@
+import type { Queue } from './queue.ts'
+
 export type ErrorProperties = { cause?: Error } & Record<string, any>
 
 export interface OptimizeJobPayload {
@@ -32,6 +34,16 @@ export interface QueueOptions {
 export interface Job {
   payload: QueuePayload
 }
+
+export interface ServerOptions {
+  queue?: Queue
+  queueOptions?: QueueOptions
+  path?: string
+  allowSVG?: boolean
+  maxBodySize?: number
+}
+
+export type OptimizeQuery = Record<string, string | undefined>
 
 export interface Image<T = Buffer | string> {
   buffer: T

@@ -1,8 +1,9 @@
+import { BadGatewayError, BadRequestError } from 'http-errors-enhanced'
 // @ts-expect-error
 import isAnimated from 'is-animated'
 import sharp from 'sharp'
+import { request } from 'undici'
 import { animatableTypes, bypassTypes, imageTypes, maxImageSize } from './definitions.ts'
-import { ImageError } from './errors.ts'
 import type { Image } from './types.ts'
 
 // Based on https://en.wikipedia.org/wiki/List_of_file_signatures
@@ -39,15 +40,15 @@ export async function optimize (buffer: Buffer, width: number, quality: number, 
   const upstreamType = detectImageType(buffer)
 
   if (!upstreamType) {
-    throw new ImageError(400, 'Invalid input image')
+    throw new BadRequestError('Invalid input image')
   }
 
   if (animatableTypes.includes(upstreamType) && isAnimated(buffer)) {
-    throw new ImageError(400, 'Unable to optimize and animated image')
+    throw new BadRequestError('Unable to optimize and animated image')
   }
 
   if (upstreamType === 'svg' && !allowSVG) {
-    throw new ImageError(400, 'Optimization of SVG images is not allowed')
+    throw new BadRequestError('SVG images are not allowed')
   }
 
   if (bypassTypes.includes(upstreamType)) {
@@ -76,17 +77,20 @@ export async function fetchAndOptimize (
   quality: number,
   allowSVG = false
 ): Promise<Image<Buffer>> {
-  const response = await fetch(url)
+  const response = await request(url)
 
-  if (!response.ok) {
-    throw new ImageError(response.statusText, `Unable to fetch the image. [HTTP ${response.statusText}]`, {
-      response: await response.text()
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new BadGatewayError(`Unable to fetch the image. [HTTP ${response.statusCode}]`, {
+      response: await response.body.text()
     })
   }
 
+  const contentType = response.headers['content-type']
+  const cacheControl = response.headers['cache-control']
+
   return {
-    buffer: await optimize(Buffer.from(await response.arrayBuffer()), width, quality, allowSVG),
-    contentType: response.headers.get('content-type'),
-    cacheControl: response.headers.get('cache-control')
+    buffer: await optimize(Buffer.from(await response.body.arrayBuffer()), width, quality, allowSVG),
+    contentType: typeof contentType === 'string' ? contentType : null,
+    cacheControl: typeof cacheControl === 'string' ? cacheControl : null
   }
 }

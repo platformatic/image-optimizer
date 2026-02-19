@@ -53,14 +53,15 @@ test('fetchAndOptimize returns null metadata when headers are missing', async ()
   equal(optimized.cacheControl, null)
 })
 
-test('fetchAndOptimize throws ImageError on non-2xx response', async () => {
+test('fetchAndOptimize throws BadGatewayError on non-2xx response', async () => {
   const mockPool = mockAgent.get('https://images.example')
   mockPool.intercept({ path: '/missing.jpg', method: 'GET' }).reply(404, 'missing')
 
   await rejects(fetchAndOptimize('https://images.example/missing.jpg', width, quality), {
-    name: 'ImageError',
-    code: 'Not Found',
-    message: 'Unable to fetch the image. [HTTP Not Found]',
+    name: 'BadGatewayError',
+    code: 'HTTP_ERROR_BAD_GATEWAY',
+    statusCode: 502,
+    message: 'Unable to fetch the image. [HTTP 404]',
     response: 'missing'
   })
 })
