@@ -29,4 +29,4 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Run Tests
-        run: 'pnpm run ${{ matrix.test-command }}'
+        run: 'pnpm run ci'
