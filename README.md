@@ -63,6 +63,11 @@ Creates a Fastify server with an optimization endpoint (default path: `/`):
 
 - `GET /?url=...&width=...&quality=...`
 
+Options:
+- `path`: endpoint path (default: `/`)
+- `allowSVG`: allow SVG optimization (default: `false`)
+- `includeErrorCausesInResponse`: include serialized error cause/stack in `500` responses (default: `false`)
+
 ## Example
 
 ```ts

@@ -24,7 +24,7 @@ function readNumberQueryParam (query: OptimizeQuery, name: string): number {
   return value
 }
 
-function handleError (error: HttpError, reply: FastifyReply): void {
+function handleError (error: HttpError, reply: FastifyReply, includeErrorCausesInResponse: boolean): void {
   const statusCode = error.statusCode
   const body: Record<string, any> = {
     statusCode,
@@ -34,7 +34,7 @@ function handleError (error: HttpError, reply: FastifyReply): void {
 
   addAdditionalProperties(body, error)
 
-  if (statusCode === 500 && process.env.NODE_ENV !== 'production' && error.cause) {
+  if (statusCode === 500 && includeErrorCausesInResponse && error.cause) {
     body.cause = serializeError(error.cause as Error)
   }
 
@@ -74,20 +74,22 @@ export async function createServer (options: ServerOptions = {}): Promise<Fastif
   const ownQueue = !options.queue
   const normalizedOptions = {
     path: options.path ?? '/',
-    allowSVG: options.allowSVG ?? false
+    allowSVG: options.allowSVG ?? false,
+    includeErrorCausesInResponse: options.includeErrorCausesInResponse ?? false
   }
 
   const app = Fastify()
 
   app.setNotFoundHandler((_, reply) => {
-    handleError(new NotFoundError('Invalid endpoint'), reply)
+    handleError(new NotFoundError('Invalid endpoint'), reply, normalizedOptions.includeErrorCausesInResponse)
     throw new NotFoundError('Path not found.')
   })
 
   app.setErrorHandler((error: Error, _, reply) => {
     handleError(
       isHttpError(error) ? error : new InternalServerError('An unexpected error occurred.', { cause: error }),
-      reply
+      reply,
+      normalizedOptions.includeErrorCausesInResponse
     )
   })
 

@@ -40,6 +40,7 @@ export interface ServerOptions {
   queueOptions?: QueueOptions
   path?: string
   allowSVG?: boolean
+  includeErrorCausesInResponse?: boolean
 }
 
 export type OptimizeQuery = Record<string, string | undefined>

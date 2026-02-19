@@ -48,7 +48,7 @@ test('createServer handles GET / requests', async () => {
   deepEqual(calls, [{ url: 'https://images.example/a.jpg', width: 120, quality: 75, allowSVG: false }])
 })
 
-test('createServer returns cause stack for 500 errors outside production', async () => {
+test('createServer returns cause stack for unexpected 500 errors when enabled', async () => {
   const queue = {
     async fetchAndOptimize () {
       throw new Error('boom')
@@ -58,18 +58,13 @@ test('createServer returns cause stack for 500 errors outside production', async
     }
   } as any
 
-  const previousNodeEnv = process.env.NODE_ENV
-  delete process.env.NODE_ENV
-
-  const server = await createServer({ queue })
+  const server = await createServer({ queue, includeErrorCausesInResponse: true })
   servers.push(server)
 
   const response = await server.inject({
     method: 'GET',
     url: '/?url=https%3A%2F%2Fimages.example%2Fa.jpg&width=120&quality=75'
   })
-
-  process.env.NODE_ENV = previousNodeEnv
 
   equal(response.statusCode, 500)
 
@@ -83,7 +78,7 @@ test('createServer returns cause stack for 500 errors outside production', async
   ok(payload.cause.stack.length > 0)
 })
 
-test('createServer does not return cause stack for 500 errors in production', async () => {
+test('createServer does not return cause stack for unexpected 500 errors by default', async () => {
   const queue = {
     async fetchAndOptimize () {
       throw new Error('boom')
@@ -93,9 +88,6 @@ test('createServer does not return cause stack for 500 errors in production', as
     }
   } as any
 
-  const previousNodeEnv = process.env.NODE_ENV
-  process.env.NODE_ENV = 'production'
-
   const server = await createServer({ queue })
   servers.push(server)
 
@@ -104,15 +96,13 @@ test('createServer does not return cause stack for 500 errors in production', as
     url: '/?url=https%3A%2F%2Fimages.example%2Fa.jpg&width=120&quality=75'
   })
 
-  process.env.NODE_ENV = previousNodeEnv
-
   equal(response.statusCode, 500)
 
   const payload = response.json()
   equal(payload.statusCode, 500)
   equal(payload.error, 'Internal Server Error')
   equal(payload.message, 'An unexpected error occurred.')
-  equal('causeStack' in payload, false)
+  equal('cause' in payload, false)
 })
 
 test('createServer returns 400 for invalid query parameters', async () => {
