@@ -49,8 +49,10 @@ Methods:
 
 - `start()`
 - `stop()`
-- `optimize(buffer, width, quality, allowSVG?)` (auto-starts on first use)
-- `fetchAndOptimize(url, width, quality, allowSVG?)` (auto-starts on first use)
+- `optimize(buffer, width, quality, allowSVG?, enqueueOptions?)` (auto-starts on first use)
+- `fetchAndOptimize(url, width, quality, allowSVG?, enqueueOptions?)` (auto-starts on first use)
+
+`enqueueOptions` is forwarded to `@platformatic/job-queue` `enqueueAndWait()` (for example: `timeout`, `maxAttempts`, `resultTTL`).
 
 ### `createQueue(options?)`
 

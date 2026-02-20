@@ -1,4 +1,4 @@
-import type { Queue as JobQueue, MemoryStorage } from '@platformatic/job-queue'
+import type { EnqueueAndWaitOptions, Queue as JobQueue, MemoryStorage } from '@platformatic/job-queue'
 import { InternalServerError } from 'http-errors-enhanced'
 import { randomUUID } from 'node:crypto'
 import { fetchAndOptimize, optimize } from './operations.ts'
@@ -86,26 +86,44 @@ export class Queue {
     this.#started = false
   }
 
-  async optimize (buffer: Buffer, width: number, quality: number, allowSVG = false): Promise<Buffer> {
-    const result = await this.#enqueueAndWait({
-      type: 'optimize',
-      buffer: buffer.toString('base64'),
-      width,
-      quality,
-      allowSVG
-    })
+  async optimize (
+    buffer: Buffer,
+    width: number,
+    quality: number,
+    allowSVG = false,
+    options?: EnqueueAndWaitOptions
+  ): Promise<Buffer> {
+    const result = await this.#enqueueAndWait(
+      {
+        type: 'optimize',
+        buffer: buffer.toString('base64'),
+        width,
+        quality,
+        allowSVG
+      },
+      options
+    )
 
     return Buffer.from(result.buffer, 'base64')
   }
 
-  async fetchAndOptimize (url: string, width: number, quality: number, allowSVG = false): Promise<Image<Buffer>> {
-    const result = await this.#enqueueAndWait({
-      type: 'fetchAndOptimize',
-      url,
-      width,
-      quality,
-      allowSVG
-    })
+  async fetchAndOptimize (
+    url: string,
+    width: number,
+    quality: number,
+    allowSVG = false,
+    options?: EnqueueAndWaitOptions
+  ): Promise<Image<Buffer>> {
+    const result = await this.#enqueueAndWait(
+      {
+        type: 'fetchAndOptimize',
+        url,
+        width,
+        quality,
+        allowSVG
+      },
+      options
+    )
 
     return {
       buffer: Buffer.from(result.buffer, 'base64'),
@@ -114,12 +132,12 @@ export class Queue {
     }
   }
 
-  async #enqueueAndWait (payload: QueuePayload): Promise<Image<string>> {
+  async #enqueueAndWait (payload: QueuePayload, options?: EnqueueAndWaitOptions): Promise<Image<string>> {
     if (!this.#queue || !this.#started) {
       await this.start()
     }
 
-    return this.#queue!.enqueueAndWait(randomUUID(), payload)
+    return this.#queue!.enqueueAndWait(randomUUID(), payload, options)
   }
 
   async #execute ({ payload }: Job): Promise<Image<string>> {

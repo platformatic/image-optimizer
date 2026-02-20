@@ -29,6 +29,39 @@ class BrokenJobQueueModuleQueue extends Queue {
   }
 }
 
+class EnqueueOptionsSpyJobQueue {
+  static calls: Array<{ payload: any; options: any }> = []
+
+  execute (): void {}
+
+  async start (): Promise<void> {}
+
+  async stop (): Promise<void> {}
+
+  async enqueueAndWait (_id: string, payload: any, options?: any): Promise<any> {
+    EnqueueOptionsSpyJobQueue.calls.push({ payload, options })
+
+    if (payload.type === 'optimize') {
+      return { buffer: payload.buffer }
+    }
+
+    return {
+      buffer: Buffer.from('queued-image').toString('base64'),
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=10'
+    }
+  }
+}
+
+class EnqueueOptionsQueue extends Queue {
+  protected static async loadJobQueueModule (): Promise<any> {
+    return {
+      Queue: EnqueueOptionsSpyJobQueue,
+      MemoryStorage: class {}
+    }
+  }
+}
+
 const fixtures = join(import.meta.dirname, 'fixtures', 'before')
 const width = 120
 const quality = 60
@@ -126,6 +159,25 @@ test('Queue optimizes images through queue jobs', async () => {
 
   ok(queuedOptimized.byteLength < source.byteLength)
   deepEqual(queuedOptimized, directOptimized)
+
+  await optimizer.stop()
+})
+
+test('Queue optimize and fetchAndOptimize forward enqueue options', async () => {
+  EnqueueOptionsSpyJobQueue.calls = []
+
+  const optimizer = new EnqueueOptionsQueue()
+  await optimizer.start()
+
+  const optimizeOptions = { timeout: 1200, maxAttempts: 4, resultTTL: 30_000 }
+  await optimizer.optimize(Buffer.from('source'), width, quality, false, optimizeOptions)
+
+  const fetchOptions = { timeout: 2400, maxAttempts: 2, resultTTL: 60_000 }
+  await optimizer.fetchAndOptimize('https://queue-images.example/source.webp', width, quality, false, fetchOptions)
+
+  equal(EnqueueOptionsSpyJobQueue.calls.length, 2)
+  deepEqual(EnqueueOptionsSpyJobQueue.calls[0].options, optimizeOptions)
+  deepEqual(EnqueueOptionsSpyJobQueue.calls[1].options, fetchOptions)
 
   await optimizer.stop()
 })
