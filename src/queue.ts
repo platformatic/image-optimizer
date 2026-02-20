@@ -1,7 +1,8 @@
 import type { EnqueueAndWaitOptions, Queue as JobQueue, MemoryStorage } from '@platformatic/job-queue'
 import { InternalServerError } from 'http-errors-enhanced'
 import { randomUUID } from 'node:crypto'
-import { fetchAndOptimize, optimize } from './operations.ts'
+import { fetchAndOptimize } from './operations.ts'
+import { queueResultSerde } from './result-serde.ts'
 import type { Image, Job, QueueOptions, QueuePayload } from './types.ts'
 
 interface JobQueueModule {
@@ -12,7 +13,7 @@ interface JobQueueModule {
 export class Queue {
   protected static jobQueueModulePromise: Promise<JobQueueModule> | null = null
 
-  #queue: JobQueue<QueuePayload, Image<string>> | null = null
+  #queue: JobQueue<QueuePayload, Image<Buffer>> | null = null
   #started = false
   #options: QueueOptions
 
@@ -57,7 +58,7 @@ export class Queue {
 
     const storage = (this.#options.storage ?? new MemoryStorage()) as any
 
-    const queue = new JobQueue<QueuePayload, Image<string>>({
+    const queue = new JobQueue<QueuePayload, Image<Buffer>>({
       storage,
       workerId: this.#options.workerId,
       concurrency: this.#options.concurrency,
@@ -65,7 +66,8 @@ export class Queue {
       maxRetries: this.#options.maxRetries,
       visibilityTimeout: this.#options.visibilityTimeout,
       processingQueueTTL: this.#options.processingQueueTTL,
-      resultTTL: this.#options.resultTTL
+      resultTTL: this.#options.resultTTL,
+      resultSerde: queueResultSerde
     })
 
     queue.execute(this.#execute.bind(this))
@@ -84,27 +86,6 @@ export class Queue {
     await this.#queue.stop()
     this.#queue = null
     this.#started = false
-  }
-
-  async optimize (
-    buffer: Buffer,
-    width: number,
-    quality: number,
-    allowSVG = false,
-    options?: EnqueueAndWaitOptions
-  ): Promise<Buffer> {
-    const result = await this.#enqueueAndWait(
-      {
-        type: 'optimize',
-        buffer: buffer.toString('base64'),
-        width,
-        quality,
-        allowSVG
-      },
-      options
-    )
-
-    return Buffer.from(result.buffer, 'base64')
   }
 
   async fetchAndOptimize (
@@ -126,13 +107,13 @@ export class Queue {
     )
 
     return {
-      buffer: Buffer.from(result.buffer, 'base64'),
+      buffer: result.buffer,
       contentType: result.contentType ?? null,
       cacheControl: result.cacheControl ?? null
     }
   }
 
-  async #enqueueAndWait (payload: QueuePayload, options?: EnqueueAndWaitOptions): Promise<Image<string>> {
+  async #enqueueAndWait (payload: QueuePayload, options?: EnqueueAndWaitOptions): Promise<Image<Buffer>> {
     if (!this.#queue || !this.#started) {
       await this.start()
     }
@@ -140,25 +121,8 @@ export class Queue {
     return this.#queue!.enqueueAndWait(randomUUID(), payload, options)
   }
 
-  async #execute ({ payload }: Job): Promise<Image<string>> {
-    if (payload.type === 'optimize') {
-      const optimizedBuffer = await optimize(
-        Buffer.from(payload.buffer, 'base64'),
-        payload.width,
-        payload.quality,
-        payload.allowSVG
-      )
-      return {
-        buffer: optimizedBuffer.toString('base64')
-      }
-    }
-
-    const optimizedImage = await fetchAndOptimize(payload.url, payload.width, payload.quality, payload.allowSVG)
-    return {
-      buffer: optimizedImage.buffer.toString('base64'),
-      contentType: optimizedImage.contentType,
-      cacheControl: optimizedImage.cacheControl
-    }
+  async #execute ({ payload }: Job): Promise<Image<Buffer>> {
+    return fetchAndOptimize(payload.url, payload.width, payload.quality, payload.allowSVG)
   }
 }
 

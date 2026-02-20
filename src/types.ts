@@ -1,22 +1,12 @@
 export type ErrorProperties = { cause?: Error } & Record<string, any>
 
-export interface OptimizeJobPayload {
-  type: 'optimize'
-  buffer: string
-  width: number
-  quality: number
-  allowSVG: boolean
-}
-
-export interface FetchAndOptimizeJobPayload {
+export interface QueuePayload {
   type: 'fetchAndOptimize'
   url: string
   width: number
   quality: number
   allowSVG: boolean
 }
-
-export type QueuePayload = OptimizeJobPayload | FetchAndOptimizeJobPayload
 
 export interface QueueOptions {
   storage?: unknown
