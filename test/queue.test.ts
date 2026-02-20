@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
-import { createQueue, optimize, Queue } from '../src/index.ts'
+import { createQueue, fetchAndOptimize, Queue } from '../src/index.ts'
 
 class ProbeQueue extends Queue {
   static resetModuleCache (): void {
@@ -41,12 +41,8 @@ class EnqueueOptionsSpyJobQueue {
   async enqueueAndWait (_id: string, payload: any, options?: any): Promise<any> {
     EnqueueOptionsSpyJobQueue.calls.push({ payload, options })
 
-    if (payload.type === 'optimize') {
-      return { buffer: payload.buffer }
-    }
-
     return {
-      buffer: Buffer.from('queued-image').toString('base64'),
+      buffer: Buffer.from('queued-image'),
       contentType: 'image/webp',
       cacheControl: 'public, max-age=10'
     }
@@ -122,9 +118,12 @@ test('createQueue returns a started queue', async () => {
   const optimizer = await createQueue()
   const source = readFileSync(join(fixtures, 'source.png'))
 
-  const optimized = await optimizer.optimize(source, width, quality)
+  const mockPool = mockAgent.get('https://queue-images.example')
+  mockPool.intercept({ path: '/create-queue.png', method: 'GET' }).reply(200, source)
 
-  ok(optimized.byteLength <= source.byteLength)
+  const optimized = await optimizer.fetchAndOptimize('https://queue-images.example/create-queue.png', width, quality)
+
+  ok(optimized.buffer.byteLength <= source.byteLength)
 
   await optimizer.stop()
 })
@@ -135,49 +134,62 @@ test('Queue.stop is a no-op when queue is not started', async () => {
   await optimizer.stop()
 })
 
-test('Queue starts on demand when optimize is called before start', async () => {
+test('Queue starts on demand when fetchAndOptimize is called before start', async () => {
   const optimizer = new Queue()
   const source = readFileSync(join(fixtures, 'source.jpg'))
 
-  const optimized = await optimizer.optimize(source, width, quality)
+  const mockPool = mockAgent.get('https://queue-images.example')
+  mockPool.intercept({ path: '/on-demand.jpg', method: 'GET' }).reply(200, source)
 
-  ok(optimized.byteLength < source.byteLength)
+  const optimized = await optimizer.fetchAndOptimize('https://queue-images.example/on-demand.jpg', width, quality)
+
+  ok(optimized.buffer.byteLength < source.byteLength)
 
   await optimizer.stop()
 })
 
-test('Queue optimizes images through queue jobs', async () => {
+test('Queue fetchAndOptimize works through queue jobs', async () => {
   const optimizer = new Queue({ concurrency: 2 })
   await optimizer.start()
 
   const source = readFileSync(join(fixtures, 'source.jpg'))
 
+  const mockPool = mockAgent.get('https://queue-images.example')
+  mockPool.intercept({ path: '/queue-jobs.jpg', method: 'GET' }).reply(200, source, {
+    headers: {
+      'content-type': 'image/jpeg',
+      'cache-control': 'public, max-age=42'
+    }
+  })
+  mockPool.intercept({ path: '/queue-jobs.jpg', method: 'GET' }).reply(200, source, {
+    headers: {
+      'content-type': 'image/jpeg',
+      'cache-control': 'public, max-age=42'
+    }
+  })
+
   const [queuedOptimized, directOptimized] = await Promise.all([
-    optimizer.optimize(source, width, quality),
-    optimize(source, width, quality)
+    optimizer.fetchAndOptimize('https://queue-images.example/queue-jobs.jpg', width, quality),
+    fetchAndOptimize('https://queue-images.example/queue-jobs.jpg', width, quality)
   ])
 
-  ok(queuedOptimized.byteLength < source.byteLength)
+  ok(queuedOptimized.buffer.byteLength < source.byteLength)
   deepEqual(queuedOptimized, directOptimized)
 
   await optimizer.stop()
 })
 
-test('Queue optimize and fetchAndOptimize forward enqueue options', async () => {
+test('Queue fetchAndOptimize forwards enqueue options', async () => {
   EnqueueOptionsSpyJobQueue.calls = []
 
   const optimizer = new EnqueueOptionsQueue()
   await optimizer.start()
 
-  const optimizeOptions = { timeout: 1200, maxAttempts: 4, resultTTL: 30_000 }
-  await optimizer.optimize(Buffer.from('source'), width, quality, false, optimizeOptions)
-
   const fetchOptions = { timeout: 2400, maxAttempts: 2, resultTTL: 60_000 }
   await optimizer.fetchAndOptimize('https://queue-images.example/source.webp', width, quality, false, fetchOptions)
 
-  equal(EnqueueOptionsSpyJobQueue.calls.length, 2)
-  deepEqual(EnqueueOptionsSpyJobQueue.calls[0].options, optimizeOptions)
-  deepEqual(EnqueueOptionsSpyJobQueue.calls[1].options, fetchOptions)
+  equal(EnqueueOptionsSpyJobQueue.calls.length, 1)
+  deepEqual(EnqueueOptionsSpyJobQueue.calls[0].options, fetchOptions)
 
   await optimizer.stop()
 })

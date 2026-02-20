@@ -49,10 +49,12 @@ Methods:
 
 - `start()`
 - `stop()`
-- `optimize(buffer, width, quality, allowSVG?, enqueueOptions?)` (auto-starts on first use)
 - `fetchAndOptimize(url, width, quality, allowSVG?, enqueueOptions?)` (auto-starts on first use)
 
-`enqueueOptions` is forwarded to `@platformatic/job-queue` `enqueueAndWait()` (for example: `timeout`, `maxAttempts`, `resultTTL`).
+Notes:
+
+- Queue processing is URL-based (`fetchAndOptimize`) and returns `{ buffer, contentType, cacheControl }`.
+- `enqueueOptions` is forwarded to `@platformatic/job-queue` `enqueueAndWait()` (for example: `timeout`, `maxAttempts`, `resultTTL`).
 
 ### `createQueue(options?)`
 
@@ -61,10 +63,10 @@ Creates and starts a `Queue` instance.
 ## Example
 
 ```ts
-import { createQueue, fetchAndOptimize } from '@platformatic/image-optimizer'
+import { createQueue } from '@platformatic/image-optimizer'
 
 const queue = await createQueue({ concurrency: 2 })
-const { buffer } = await fetchAndOptimize('https://example.com/image.jpg', 800, 75)
+const { buffer, contentType, cacheControl } = await queue.fetchAndOptimize('https://example.com/image.jpg', 800, 75)
 await queue.stop()
 ```
 
