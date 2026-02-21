@@ -1,6 +1,6 @@
 {
   "name": "@platformatic/image-optimizer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Detect, fetch, and optimize images with sharp, with optional queue-backed processing via @platformatic/job-queue.",
   "homepage": "https://github.com/platformatic/image-optimizer",
   "author": "Platformatic Inc. <oss@platformatic.dev> (https://platformatic.dev)",
