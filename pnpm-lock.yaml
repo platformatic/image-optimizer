@@ -59,8 +59,8 @@ importers:
         version: 5.9.3
     optionalDependencies:
       '@platformatic/job-queue':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.1
+        version: 0.4.1
       iovalkey:
         specifier: ^0.3.3
         version: 0.3.3
@@ -316,8 +316,8 @@ packages:
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@platformatic/job-queue@0.3.0':
-    resolution: {integrity: sha512-3VMkAZSbCkNRwJpp6FL6atPegKVKbfpbPdfU91C4433B0YBLT4uOc6hy/x9Q+PgPeVsa/jTpzH4IjTuUqJqQ5g==}
+  '@platformatic/job-queue@0.4.1':
+    resolution: {integrity: sha512-oFXAi7DDRVGHqPzfkpcs8i3TKx3ppz4YQ1KIkNEkJWYpzglJv6Xkc/aF4tgUZBaUptEGLorwE4SsEFVGspgh0A==}
     engines: {node: '>=22.19.0'}
 
   '@platformatic/tsconfig@0.2.0':
@@ -1941,7 +1941,7 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
-  '@platformatic/job-queue@0.3.0':
+  '@platformatic/job-queue@0.4.1':
     dependencies:
       pino: 10.3.1
     optionalDependencies:
