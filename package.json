@@ -42,7 +42,7 @@
     "undici": "^7.22.0"
   },
   "optionalDependencies": {
-    "@platformatic/job-queue": "^0.3.0",
+    "@platformatic/job-queue": "^0.4.1",
     "iovalkey": "^0.3.3"
   },
   "devDependencies": {
@@ -63,3 +63,4 @@
     "node": ">= 22.19.0"
   }
 }
+
